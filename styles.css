@@ -2,20 +2,42 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: Georgia, serif;
+  font-family: "Times New Roman", serif;
 }
 
 #dashboard {
   display: flex;
   height: 100vh;
+  overflow: hidden; /* prevents whole-page scrolling */
 }
 
 #sidebar {
   width: 320px;
   padding: 20px;
-  background: #fff0f3;
-  border-right: 1px solid #800f2f;
+  background: #ffffff;
+  border-right: 1px solid #003049;
   box-sizing: border-box;
+
+  overflow-y: auto; /* <-- sidebar scrolls */
+}
+
+.hover-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #003049;
+  color: #000000;
+  font-family: "Times New Roman", serif;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.leaflet-interactive {
+  outline: none;
+}
+
+#map {
+  flex: 1;
+  height: 100vh; /* keeps map locked */
 }
 
 #sidebar h2 {
@@ -23,14 +45,14 @@ html, body {
 }
 
 .sidebar-button {
-  font-family: Georgia, serif;
+  font-family: "Times New Roman", serif;
   font-size: 12px;
   padding: 6px 6px;
   cursor: pointer;
 }
 
 .subtitle {
-  color: #590d22;
+  color: #003049;
   font-size: 14px;
   margin-bottom: 20px;
 }
@@ -38,10 +60,6 @@ html, body {
 #county-details {
   margin-top: 20px;
   line-height: 1.6;
-}
-
-#map {
-  flex: 1;
 }
 
 .info {
