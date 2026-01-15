@@ -8,24 +8,40 @@ let usStatesLayer = null;
 let usCountiesData = null;
 let activeCountyLayer = null;
 let selectedStateFP = null;
+const countyPopulation = {};
+const statePopulation = {};
 
-//replace placeholders by fastapi fetching
-const countyScores = {
-  "46099": {name: "Minnehaha", score: 85 },
-  "46013": {name: "Brown", score: 72 },
-  "46067": {name: "Hughes", score: 58 }};
+fetch('/api/county-scores') //THIS IS THE NEW PART, REPLACED YOUR COUNTYSCORES PLACEHOLDER
+  .then(res => res.json())
+  .then(data => {
+    countyScores = data;               
+    console.log('Data', countyScores);
+
+    // refresh colors after scores arrive
+    if (usStatesLayer) usStatesLayer.setStyle(stateStyle);
+    if (activeCountyLayer) activeCountyLayer.setStyle(countyStyle);
+  })
+  .catch(err => console.error('county-scores error:', err));
 
 //colors for score scales
 function getColor(score) {
-  return score > 80 ? '#6F1D1B':
-         score > 60 ? '#BB9457':
-         score > 40 ? '#432818':
-         score > 20 ? '#99582A':
-                       '#FFE6A7';
+  return score > 80 ? '#003049':
+         score > 60 ? '#669BBC':
+         score > 40 ? '#FDF0D5':
+         score > 20 ? '#C1121F':
+                       '#780000';
 }
 
 //data helpers
 function getCountyScore(geoid) {return countyScores[geoid]?.score ?? null;}
+
+function getCountyPopulation(geoid) {
+  return countyPopulation[geoid] ?? null;
+}
+
+function getStatePopulation(stateFP) {
+  return statePopulation[stateFP] ?? null;
+}
 
 function getStateAverageScore(stateFP) {
   let total = 0;
@@ -40,13 +56,32 @@ function getStateAverageScore(stateFP) {
       }
     }
   });
-  return count > 0 ? Math.round(total / count) : null;}
+  return count > 0 ? Math.round(total / count) : null;
+}
+
+async function loadCountyPopulation() {
+  const url =
+    'https://api.census.gov/data/2020/dec/pl?get=P1_001N,STATE,COUNTY&for=county:*';
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  data.slice(1).forEach(row => {
+    const population = parseInt(row[0], 10);
+    const stateFP = row[1];
+    const countyFP = row[2];
+
+    const geoid = stateFP + countyFP;
+    countyPopulation[geoid] = population;
+  });
+}
 
 /*loading states and counties from census data maps - had to convert them into json because 
 geojson was not supported and showing as null on chrome*/
 Promise.all([
   fetch('data/us_states.json').then(r => r.json()),
-  fetch('data/us_counties.json').then(r => r.json())
+  fetch('data/us_counties.json').then(r => r.json()),
+  loadCountyPopulation()
 ]).then(([statesData, countiesData]) => {
   usCountiesData = countiesData;
 
@@ -64,7 +99,7 @@ function stateStyle(feature) {
   return {
     fillColor: avg ? getColor(avg) : '#ccc',
     weight: 1,
-    color: '#800f2f',
+    color: '#003049',
     fillOpacity: 0.7};
 }
 
@@ -73,12 +108,24 @@ function countyStyle(feature) {
   return {
     fillColor: score ? getColor(score) : '#eee',
     weight: 1,
-    color: '#800f2f',
+    color: '#003049',
     fillOpacity: 0.7};
 }
 
 //interactions for states
 function onEachState(feature, layer) {
+  const avg = getStateAverageScore(feature.properties.STATEFP);
+
+  layer.bindTooltip(
+    `<strong>${feature.properties.NAME}</strong><br/>
+     Avg Score: ${avg ?? 'N/A'}`,
+    {
+      sticky: true,
+      direction: 'top',
+      className: 'hover-tooltip'
+    }
+  );
+
   layer.on({
     click: () => handleStateClick(feature, layer),
     mouseover: e => e.target.setStyle({ fillOpacity: 0.9 }),
@@ -113,6 +160,18 @@ function showCountiesForState(stateFP) {
 }
 
 function onEachCounty(feature, layer) {
+  const score = getCountyScore(feature.properties.GEOID);
+
+  layer.bindTooltip(
+    `<strong>${feature.properties.NAME} County</strong><br/>
+     Score: ${score ?? 'N/A'}`,
+    {
+      sticky: true,
+      direction: 'top',
+      className: 'hover-tooltip'
+    }
+  );
+
   layer.on({
     click: () => showCountySidebar(feature),
     mouseover: e => e.target.setStyle({ fillOpacity: 0.9 }),
@@ -154,13 +213,19 @@ function showStateSidebar(stateName) {
 }
 
 function showCountySidebar(feature) {
-  const score = getCountyScore(feature.properties.GEOID);
+  const geoid = feature.properties.GEOID;
+  const score = getCountyScore(geoid);
+  const population = getCountyPopulation(geoid);
 
   document.getElementById('sidebar').innerHTML = `
     <button onclick="resetToState()" class="sidebar-button">Back to State</button>
     <h2>${feature.properties.NAME} County</h2>
+
     <p><strong>Score:</strong> ${score ?? 'N/A'}</p>
-    `;
+    <p><strong>Population:</strong> ${
+      population ? population.toLocaleString() : 'N/A'
+    }</p>
+  `;
 }
 
 //navigation
